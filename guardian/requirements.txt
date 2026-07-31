@@ -1,0 +1,26 @@
+# Core
+numpy>=1.26
+opencv-python>=4.10
+pyyaml>=6.0
+scipy>=1.13
+
+# Perception
+torch>=2.4
+torchvision>=0.19
+ultralytics>=8.3          # RT-DETR / YOLOv10
+transformers>=4.45        # Depth Anything V2, Qwen2.5-VL
+accelerate>=0.34
+sam2>=1.0                 # segment-anything-2
+
+# Language / audio
+faster-whisper>=1.0
+piper-tts>=1.2
+sounddevice>=0.4.7
+
+# Deployment (Jetson: use JetPack builds instead)
+onnx>=1.16
+onnxruntime-gpu>=1.19
+
+# Tooling
+pytest>=8.0
+rich>=13.7

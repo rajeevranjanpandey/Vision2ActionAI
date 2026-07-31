@@ -1,0 +1,89 @@
+camera:
+  width: 1280
+  height: 720
+  fps: 30
+  # Intrinsics from checkerboard calibration; fx/fy in pixels.
+  fx: 912.0
+  fy: 912.0
+  cx: 640.0
+  cy: 360.0
+  # Mounting geometry of the wearable (metres / radians).
+  height_m: 1.50
+  pitch_rad: -0.10
+
+detector:
+  backend: ultralytics        # ultralytics | onnx | tensorrt
+  weights: rtdetr-l.pt        # or yolov10s.pt
+  conf_threshold: 0.35
+  iou_threshold: 0.5
+  input_size: 640
+  # COCO classes that matter for pedestrian navigation.
+  keep_classes: [0, 1, 2, 3, 5, 7, 9, 10, 11, 13, 15, 16, 56, 57, 60, 62]
+
+depth:
+  model: depth-anything/Depth-Anything-V2-Small-hf
+  input_size: 518
+  # Metric recovery
+  scale_mode: ground_plane    # ground_plane | fixed | none
+  ransac_iterations: 120
+  ransac_inlier_m: 0.06
+  scale_smoothing: 0.85       # EMA on the recovered scale factor
+
+segmenter:
+  enabled: true
+  model: facebook/sam2-hiera-tiny
+  # SAM 2 runs only on detections already inside the risk cone.
+  max_prompts_per_frame: 4
+  memory_frames: 7
+
+tracking:
+  max_age_frames: 12
+  min_hits: 3
+  association_radius_m: 1.2
+  process_noise: 0.6
+  measurement_noise: 0.25
+
+risk:
+  # Risk cone: half-width at the user, and how it widens with distance.
+  cone_half_width_m: 0.55
+  cone_widen_per_m: 0.08
+  cone_range_m: 12.0
+  ego_radius_m: 1.0
+  horizon_s: 3.0
+  forecast_dt: 0.1
+  ttc_warn_s: 3.0
+  ttc_urgent_s: 1.5
+  min_closing_speed_mps: 0.15
+
+policy:
+  fast_path_hz: 10
+  alert_cooldown_s: 2.5
+  urgent_cooldown_s: 0.8
+  hysteresis_frames: 2
+  degraded_after_ms: 400
+
+vlm:
+  enabled: true
+  model: Qwen/Qwen2.5-VL-3B-Instruct
+  max_new_tokens: 64
+  interval_s: 1.5
+  # Slow path is advisory only. It can never raise or suppress a safety alert.
+  advisory_only: true
+
+stt:
+  enabled: true
+  model: small.en
+  device: cuda
+  compute_type: int8_float16
+  vad: true
+
+tts:
+  voice: en_US-lessac-medium
+  rate: 1.15
+  earcon_sample_rate: 22050
+
+haptics:
+  enabled: true
+  channels: 3               # left / centre / right
+  urgent_pattern_hz: 12
+  warn_pattern_hz: 4

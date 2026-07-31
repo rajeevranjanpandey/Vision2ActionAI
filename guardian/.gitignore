@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Model weights and build artifacts
+*.pt
+*.onnx
+*.engine
+artifacts/
+checkpoints/
+
+# Recorded data never enters version control: it contains bystander faces,
+# license plates, and location traces of a participant's daily routes.
+data/
+recordings/
+*.mp4
+*.bag
+
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
