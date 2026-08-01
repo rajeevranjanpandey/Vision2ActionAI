@@ -44,7 +44,7 @@ validated minimum.
 
 ---
 
-## 3. Fall Detection + Trusted-Contact Alert
+## 3. Fall Detection + Trusted-Contact Alert — **SHIPPED**
 
 **Problem.** Degraded mode protects the user's awareness, but nothing protects them if a
 hazard results in a fall or the device disconnects entirely.
@@ -58,6 +58,21 @@ end for v1. Out of scope: full caregiver dashboard.
 
 **Metric.** False-positive fall rate per week. This is the adoption gate — nobody keeps a
 device that cries wolf to their family.
+
+**Delivered.** `guardian/guardian/safety/`: `fall.py` (three-phase conjunctive classifier
+— free-fall dip, impact peak, post-impact posture change *and* stillness),
+`escalation.py` (IDLE → COUNTDOWN → NOTIFYING state machine with a spoken 30 s cancel
+window, injected SMS transport, retry and failure announcement), `simulate_imu.py` (nine
+episode classes, including the four confusable ADLs), `evaluate.py` (sensitivity,
+specificity, projected false alerts per week, impact-threshold sweep). 32 new tests
+(120 total), `scripts/eval_fall.py` emits `src/data/fall_detection.json`, and the site
+gained an interactive replay panel with a working cancel button.
+
+**Open.** All numbers are from simulated IMU episodes that are separable by construction,
+so the operating point is provisional until worn-sensor traces exist. Next: a real
+transport binding (Twilio/GatewayAPI), and a small worn-sensor pilot to re-fit the
+impact and stillness thresholds.
+
 
 ---
 

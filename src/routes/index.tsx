@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LiveDecisionDemo } from "@/components/guardian/LiveDecisionDemo";
 import { ResultsDashboard } from "@/components/guardian/ResultsDashboard";
+import { FallChannelPanel } from "@/components/guardian/FallChannelPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -206,6 +207,30 @@ function Index() {
           <ResultsDashboard />
         </div>
       </section>
+
+      {/* Post-incident channel */}
+      <section id="fall" className="border-b border-border">
+        <div className="mx-auto max-w-6xl space-y-10 px-6 py-20">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">
+              Async channel · sprint item 3
+            </p>
+            <h2 className="mt-4 text-3xl font-bold">When prevention fails</h2>
+            <p className="mt-3 max-w-3xl text-muted-foreground">
+              The fast path exists to stop a collision. This channel exists for the case
+              where it did not. An IMU classifier — reusing the same inertial stream that
+              already supplies ground-plane pitch, so the sensor cost is zero — watches
+              for the three-phase signature of a fall: a free-fall dip, an impact peak,
+              then a rotated gravity vector that stops moving. Confirmation opens a spoken
+              cancel window before anyone is contacted, and the whole thing runs off the
+              90 ms budget entirely.
+            </p>
+          </div>
+          <FallChannelPanel />
+        </div>
+      </section>
+
+
 
 
 

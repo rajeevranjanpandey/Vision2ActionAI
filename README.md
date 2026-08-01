@@ -37,10 +37,11 @@ Two halves, both complete and runnable.
 | Tracking | `tracking/kalman.py`, `tracking/tracker.py` — Hungarian-matched 3D tracks with ego-motion compensation |
 | Risk | `risk/ttc.py` (geometric time-to-collision kernel), `risk/learned.py` (deep-ensemble head + fusion), `risk/calibration.py` (temperature scaling + split conformal), `risk/policy.py` (hysteresis + alert arbitration) |
 | Learning | `train/simulate.py` (physics scenario generator), `train/features.py` (14-D features, 8-frame window), `train/trainer.py` (pure-numpy MLP ensemble, focal loss) |
+| Post-incident | `safety/fall.py` (three-phase IMU fall classifier), `safety/escalation.py` (countdown → trusted-contact SMS), `safety/simulate_imu.py`, `safety/evaluate.py` |
 | Evaluation | `bench/metrics.py`, `bench/simeval.py`, `bench/evaluate.py` — recall, median/p10 lead time, false alarms per km, ablation arms |
 | Interaction | `audio/tts.py`, `audio/haptics.py`, `audio/stt.py` (Whisper), `language/vlm.py` (LLaVA / Qwen2.5-VL) |
 | Deployment | `deploy/export.py`, `deploy/quantize.py`, `deploy/benchmark.py` — Jetson Orin latency and thermal profiling |
-| Tests | 75 passing tests under `guardian/tests/` |
+| Tests | 120 passing tests under `guardian/tests/` |
 
 ### `src/` — the browser presentation layer
 
@@ -65,7 +66,15 @@ TypeScript (`src/lib/riskHead.ts`) and replays the training scenarios at 10 Hz
 - **Ablation harness.** Baseline TTC vs head-only vs fused vs oracle. The shipping arm
   keeps recall at 1.0 and removes all late alerts while cutting false alarms per km
   against the baseline.
+- **Post-incident channel (fall detection + trusted contact).** A three-phase IMU
+  classifier — free-fall dip, impact peak, then a rotated-and-still gravity vector —
+  reusing the inertial stream already present for ground-plane pitch. Confirmation opens
+  a spoken 30 s cancel window before a single pre-registered contact is texted with the
+  last known GPS fix. Conjunctive by design: the stillness test is what rejects heavy
+  sit-downs, stumbles, and stair descents that a bare 2 g threshold fires on. Runs
+  entirely off the fast path — 0 ms added to the 90 ms budget.
 - **Live browser demo.** Same weights, same physics, no server round-trip.
+
 
 ## 4. Pros and Cons
 
@@ -124,9 +133,10 @@ navigation-grade positioning.
 ```sh
 cd guardian
 pip install -r requirements.txt
-pytest tests/                                    # 75 tests
+pytest tests/                                    # 120 tests
 PYTHONPATH=. python scripts/train_risk.py        # ~40 s, writes src/data/results.json
 PYTHONPATH=. python scripts/export_web_head.py   # writes src/data/risk_head.json
+PYTHONPATH=. python scripts/eval_fall.py         # writes src/data/fall_detection.json
 ```
 
 Web app:

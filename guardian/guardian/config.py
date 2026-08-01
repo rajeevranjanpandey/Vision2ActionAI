@@ -123,6 +123,26 @@ class HapticsConfig:
 
 
 @dataclass
+class FallConfig:
+    """Post-incident channel. Runs asynchronously; contributes nothing to the fast path."""
+
+    enabled: bool = True
+    sample_rate_hz: float = 50.0
+    freefall_g: float = 0.60
+    freefall_min_ms: float = 80.0
+    impact_g: float = 2.40
+    impact_window_ms: float = 800.0
+    posture_change_deg: float = 50.0
+    stillness_window_ms: float = 1500.0
+    stillness_std_g: float = 0.15
+    min_confidence: float = 0.55
+    refractory_s: float = 10.0
+    countdown_s: float = 30.0
+    countdown_prompt_s: float = 5.0
+    max_send_attempts: int = 3
+
+
+@dataclass
 class GuardianConfig:
     camera: CameraConfig = field(default_factory=CameraConfig)
     detector: DetectorConfig = field(default_factory=DetectorConfig)
@@ -135,6 +155,7 @@ class GuardianConfig:
     stt: SttConfig = field(default_factory=SttConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     haptics: HapticsConfig = field(default_factory=HapticsConfig)
+    fall: FallConfig = field(default_factory=FallConfig)
 
 
 T = TypeVar("T")
@@ -172,6 +193,7 @@ def load_config(path: str | Path) -> GuardianConfig:
         stt=_build(SttConfig, raw.get("stt")),
         tts=_build(TtsConfig, raw.get("tts")),
         haptics=_build(HapticsConfig, raw.get("haptics")),
+        fall=_build(FallConfig, raw.get("fall")),
     )
     _validate(cfg)
     return cfg

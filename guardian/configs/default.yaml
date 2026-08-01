@@ -87,3 +87,21 @@ haptics:
   channels: 3               # left / centre / right
   urgent_pattern_hz: 12
   warn_pattern_hz: 4
+
+fall:
+  enabled: true
+  sample_rate_hz: 50.0
+  # Three-phase template: free-fall dip, impact peak, then posture change + stillness.
+  freefall_g: 0.60
+  freefall_min_ms: 80.0
+  impact_g: 2.40
+  impact_window_ms: 800.0
+  posture_change_deg: 50.0
+  stillness_window_ms: 1500.0
+  stillness_std_g: 0.15
+  min_confidence: 0.55
+  refractory_s: 10.0
+  # The wearer always gets a cancel window before anyone is contacted.
+  countdown_s: 30.0
+  countdown_prompt_s: 5.0
+  max_send_attempts: 3
