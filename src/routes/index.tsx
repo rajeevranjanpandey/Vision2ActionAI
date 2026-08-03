@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LiveDecisionDemo } from "@/components/guardian/LiveDecisionDemo";
-import { ResultsDashboard } from "@/components/guardian/ResultsDashboard";
-import { FallChannelPanel } from "@/components/guardian/FallChannelPanel";
+import { motion, useReducedMotion, useScroll, useSpring } from "motion/react";
+import { GuardianConsole } from "@/components/guardian/GuardianConsole";
+import { SafetyLoop } from "@/components/guardian/SafetyLoop";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "A wearable vision-language-action system that forecasts hazards 2-3 seconds before contact. Two-path architecture, metric monocular depth, and GuardianBench lead-time evaluation.",
+          "A wearable vision-language-action system for blind pedestrians: ten features across three releases, each with a runnable simulation, anchored on a predictive 10 Hz safety loop.",
       },
       {
         property: "og:title",
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "A wearable vision-language-action system that forecasts hazards 2-3 seconds before contact, evaluated on warning lead time rather than detection accuracy.",
+          "Ten features, three releases, one rule: nothing is allowed to slow the safety loop. Each feature ships with a simulation you can run.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -28,305 +28,195 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const fastPath = [
-  { stage: "Detect", detail: "RT-DETR-l, INT8 TensorRT", ms: 25 },
-  { stage: "Depth", detail: "Depth Anything V2-S + ground-plane scale", ms: 30 },
-  { stage: "Gate", detail: "Risk-corridor pre-filter", ms: 1 },
-  { stage: "Segment", detail: "SAM 2 tiny, ≤4 gated prompts", ms: 25 },
-  { stage: "Track", detail: "Ego-compensated Kalman, Hungarian match", ms: 5 },
-  { stage: "Decide", detail: "TTC, forecast rollout, alert policy", ms: 2 },
-];
+const CONTAINER = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
 
-const metrics = [
-  { label: "Lead time (median)", value: "> 2.0 s", note: "before the 1 m ego cylinder" },
-  { label: "Lead time (p10)", value: "> 1.0 s", note: "the tail is the safety number" },
-  { label: "False alarms", value: "< 2 / km", note: "or the user stops wearing it" },
-  { label: "Fast path p99", value: "< 100 ms", note: "on-device, thermally soaked" },
-];
+const RISE = {
+  hidden: { opacity: 0, y: 22 },
+  show: { opacity: 1, y: 0 },
+};
 
-const modules = [
-  {
-    path: "perception/",
-    blurb:
-      "Detection, monocular depth, and sparse SAM 2 segmentation. Ground-plane RANSAC recovers metric scale from relative depth using known camera height and IMU pitch.",
-  },
-  {
-    path: "tracking/",
-    blurb:
-      "Constant-velocity Kalman filters in the ego frame with explicit ego-motion compensation, associated by the Hungarian algorithm on 3D distance.",
-  },
-  {
-    path: "risk/",
-    blurb:
-      "The predictive kernel: closing speed, time-to-collision against a widening risk cone, 3 s trajectory rollout, and alert arbitration with hysteresis and cooldown.",
-  },
-  {
-    path: "language/",
-    blurb:
-      "Slow-path Qwen2.5-VL narration on a background thread at 0.5–1 Hz. Advisory only — it can never delay or veto a geometric warning.",
-  },
-  {
-    path: "audio/",
-    blurb:
-      "Whisper intent capture, Piper speech, spatialised earcons, and three-channel directional haptics. Haptic fires first, speech last.",
-  },
-  {
-    path: "bench/",
-    blurb:
-      "GuardianBench loader and the lead-time metrics: recall, false alarms per kilometre, and the late-alert rate that mAP cannot express.",
-  },
-];
 
 function Index() {
+  const reduce = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 24, mass: 0.3 });
+
   return (
     <main className="min-h-screen bg-background text-foreground">
+      {/* Scroll progress rule */}
+      <motion.div
+        style={{ scaleX: progress }}
+        className="fixed inset-x-0 top-0 z-50 h-[2px] origin-left bg-foreground"
+        aria-hidden
+      />
+
       {/* Hero */}
-      <section className="grid-field border-b border-border">
-        <div className="mx-auto max-w-5xl px-6 py-24 sm:py-32">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">
-            Master&apos;s research project · assistive perception
-          </p>
-          <h1 className="mt-6 text-4xl font-bold leading-[1.05] sm:text-6xl">
+      <section className="grid-field grid-drift relative overflow-hidden border-b border-border">
+        <motion.div
+          variants={CONTAINER}
+          initial={reduce ? false : "hidden"}
+          animate="show"
+          className="mx-auto grid max-w-[104rem] items-end gap-8 px-6 py-14 lg:grid-cols-[1.35fr_1fr] sm:py-16"
+        >
+
+          <div>
+          <motion.h1
+            variants={RISE}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="text-6xl font-bold leading-[0.92] tracking-[-0.045em] sm:text-8xl"
+          >
             AI Guardian
-          </h1>
-          <p className="mt-4 max-w-2xl text-xl text-muted-foreground sm:text-2xl">
-            A vision-language-action system for{" "}
-            <span className="text-foreground">predictive</span> assistance in the
-            real-world mobility of visually impaired pedestrians.
-          </p>
+          </motion.h1>
 
-          <div className="mt-10 max-w-2xl border-l-2 border-signal pl-5">
-            <p className="text-base leading-relaxed text-muted-foreground">
-              Existing assistive vision describes what is already there. A blind
-              pedestrian does not need to be told about the cyclist at the moment of
-              contact — they need to know 2.5 seconds earlier, while there is still time
-              to stop. This system forecasts hazards instead of reporting them, and is
-              evaluated on <span className="text-foreground">warning lead time</span>,
-              not detection accuracy.
-            </p>
+          <motion.p
+            variants={RISE}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-6 max-w-3xl text-xl font-semibold leading-snug text-foreground sm:text-2xl"
+          >
+            Predictive vision–language–action assistance for real-world mobility of visually
+            impaired pedestrians.
+          </motion.p>
+
+
+          <motion.p
+            variants={RISE}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-6 inline-block rounded-full border border-veto bg-veto-soft px-4 py-2 text-sm"
+          >
+            <span className="font-semibold text-veto">Advisory assistance only.</span>{" "}
+            <span className="text-muted-foreground">
+              User judgment and the geometric safety veto remain absolute.
+            </span>
+          </motion.p>
           </div>
 
-          <dl className="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
-            {metrics.map((m) => (
-              <div key={m.label} className="bg-surface p-5">
-                <dd className="font-mono text-2xl font-medium text-signal">{m.value}</dd>
-                <dt className="mt-2 text-sm font-medium">{m.label}</dt>
-                <p className="mt-1 text-xs text-muted-foreground">{m.note}</p>
+          <motion.dl
+            variants={RISE}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2"
+          >
+            {[
+              { v: "> 2.0 s", l: "median lead time", c: "border-urgent bg-urgent-soft text-urgent" },
+              { v: "< 2 / km", l: "false alarms", c: "border-veto bg-veto-soft text-veto" },
+              { v: "30 ms", l: "fast-path tick", c: "border-sense bg-sense-soft text-sense" },
+              { v: "11", l: "features, one spine", c: "border-guide bg-guide-soft text-guide" },
+            ].map((m) => (
+              <div key={m.l} className={`rounded-2xl border p-4 ${m.c}`}>
+                <dt className="font-mono text-2xl font-bold tabular-nums tracking-tight">
+                  {m.v}
+                </dt>
+                <dd className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">
+                  {m.l}
+                </dd>
               </div>
             ))}
-          </dl>
+          </motion.dl>
+        </motion.div>
+      </section>
+
+      {/* Console */}
+      <section id="features" className="border-b border-border">
+        <div className="mx-auto max-w-[104rem] px-6 py-10">
+          <GuardianConsole />
         </div>
       </section>
 
-      {/* Architecture */}
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-5xl px-6 py-20">
-          <h2 className="text-3xl font-bold">Two-path architecture</h2>
-          <p className="mt-3 max-w-2xl text-muted-foreground">
-            Safety and semantics have incompatible latency budgets. Running them in one
-            loop means either a sluggish warning or a shallow description. So they are
-            separate processes that never block each other.
-          </p>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-[3fr_2fr]">
-            <div className="rounded-lg border border-border bg-surface p-6">
-              <div className="flex items-baseline justify-between">
-                <h3 className="text-lg font-semibold">Fast path</h3>
-                <span className="font-mono text-xs text-signal">10 Hz · hard deadline</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Pure geometry. Never waits on a language model.
-              </p>
-              <ul className="mt-6 space-y-px">
-                {fastPath.map((s) => (
-                  <li
-                    key={s.stage}
-                    className="flex items-center gap-4 rounded bg-surface-2 px-4 py-3"
-                  >
-                    <span className="w-20 shrink-0 font-mono text-sm font-medium">
-                      {s.stage}
-                    </span>
-                    <span className="flex-1 text-sm text-muted-foreground">{s.detail}</span>
-                    <span className="font-mono text-sm text-signal">{s.ms} ms</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 flex justify-between border-t border-border pt-4 font-mono text-sm">
-                <span className="text-muted-foreground">budget</span>
-                <span className="text-signal">&lt; 90 ms of the 100 ms tick</span>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="rounded-lg border border-border bg-surface p-6">
-                <div className="flex items-baseline justify-between">
-                  <h3 className="text-lg font-semibold">Slow path</h3>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    0.5–1 Hz · best effort
-                  </span>
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Qwen2.5-VL on a background thread supplies scene context and answers
-                  spoken questions. Its output is advisory: it enriches a warning that
-                  the geometry has already decided to give, and it can never delay one.
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-urgent/40 bg-urgent/5 p-6">
-                <h3 className="text-lg font-semibold">Degraded mode</h3>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  If the fast path overruns, or ground-plane confidence collapses so that
-                  metres are no longer metres, the device says so out loud. A safety
-                  device that fails silently is worse than no device, because the user has
-                  already adapted their behaviour to trust it.
-                </p>
-                <p className="mt-4 font-mono text-sm text-urgent">
-                  &ldquo;Guardian degraded. Rely on your cane.&rdquo;
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Live decision layer + measured results */}
-      <section id="results" className="border-b border-border">
-        <div className="mx-auto max-w-6xl space-y-12 px-6 py-20">
-          <div>
-            <h2 className="text-3xl font-bold">The decision layer, measured</h2>
-            <p className="mt-3 max-w-3xl text-muted-foreground">
-              A learned risk head sits on top of the geometric safety kernel: an 8-frame,
-              14-feature window per track, a deep ensemble trained with focal loss,
-              temperature scaling for calibration, and split-conformal thresholds for a
-              distribution-free miss-rate budget. Geometry keeps the veto on imminent
-              contact; the head is only allowed to quiet the device when it is both
-              confident and internally in agreement.
-            </p>
-          </div>
-          <LiveDecisionDemo />
-          <ResultsDashboard />
-        </div>
-      </section>
-
-      {/* Post-incident channel */}
-      <section id="fall" className="border-b border-border">
-        <div className="mx-auto max-w-6xl space-y-10 px-6 py-20">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">
-              Async channel · sprint item 3
-            </p>
-            <h2 className="mt-4 text-3xl font-bold">When prevention fails</h2>
-            <p className="mt-3 max-w-3xl text-muted-foreground">
-              The fast path exists to stop a collision. This channel exists for the case
-              where it did not. An IMU classifier — reusing the same inertial stream that
-              already supplies ground-plane pitch, so the sensor cost is zero — watches
-              for the three-phase signature of a fall: a free-fall dip, an impact peak,
-              then a rotated gravity vector that stops moving. Confirmation opens a spoken
-              cancel window before anyone is contacted, and the whole thing runs off the
-              90 ms budget entirely.
-            </p>
-          </div>
-          <FallChannelPanel />
-        </div>
-      </section>
-
-
-
-
-
-      {/* Contributions */}
-      <section className="border-b border-border bg-surface/40">
-        <div className="mx-auto max-w-5xl px-6 py-20">
-          <h2 className="text-3xl font-bold">What is actually new</h2>
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+      {/* How it holds together */}
+      <section className="border-b border-border bg-surface">
+        <div className="mx-auto max-w-6xl px-6 py-14">
+          <motion.h2
+            initial={reduce ? false : { opacity: 0, y: 18 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="text-4xl font-bold tracking-tight sm:text-5xl"
+          >
+            How it holds together
+          </motion.h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
             {[
               {
-                n: "01",
-                title: "Prediction, not description",
-                body: "An anticipatory risk formulation over forecast trajectories in a metric ego frame, so the warning arrives while avoidance is still possible.",
+                t: "Fast path · 10 Hz",
+                c: "border-urgent bg-urgent-soft",
+                b: "Detect, metric depth, track, decide. Pure geometry, hard deadline, keeps an absolute veto over every other signal in the system.",
               },
               {
-                n: "02",
-                title: "Metric scale from one camera",
-                body: "Ground-plane RANSAC over relative depth, anchored by known camera height and IMU pitch, turns a scale-ambiguous depth map into metres — with a confidence signal that gates the whole system.",
+                t: "Slow path · 0.5–1 Hz",
+                c: "border-assist bg-assist-soft",
+                b: "Vision-language narration, signal reading, reading text aloud. Advisory only. It enriches a warning; it can never delay or cancel one.",
               },
               {
-                n: "03",
-                title: "GuardianBench",
-                body: "An egocentric pedestrian dataset labelled by O&M instructors with hazard onset: the frame at which a sighted guide would have intervened. That label is what makes lead time measurable at all.",
+                t: "Async channels",
+                c: "border-memory bg-memory-soft",
+                b: "Fall detection, hazard memory, breadcrumbs, federated feedback. They write parameters the fast path reads, and never run inside its tick.",
               },
-            ].map((c) => (
-              <div key={c.n} className="rounded-lg border border-border bg-surface p-6">
-                <span className="font-mono text-sm text-signal">{c.n}</span>
-                <h3 className="mt-3 text-lg font-semibold">{c.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{c.body}</p>
-              </div>
+            ].map((c, i) => (
+              <motion.div
+                key={c.t}
+                initial={reduce ? false : { opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.5, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                whileHover={reduce ? {} : { y: -4 }}
+                className={`rounded-2xl border p-6 ${c.c}`}
+              >
+                <h3 className="font-mono text-sm">{c.t}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{c.b}</p>
+              </motion.div>
             ))}
+          </div>
+          <div className="mt-14">
+            <SafetyLoop />
           </div>
         </div>
       </section>
 
-      {/* Repository */}
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-5xl px-6 py-20">
-          <h2 className="text-3xl font-bold">The repository</h2>
-          <p className="mt-3 text-muted-foreground">
-            Full implementation under <code className="font-mono text-signal">guardian/</code>,
-            with 49 tests over the safety-critical maths.
-          </p>
-
-          <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-2">
-            {modules.map((m) => (
-              <div key={m.path} className="bg-surface p-6">
-                <h3 className="font-mono text-sm text-signal">{m.path}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {m.blurb}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-8 overflow-x-auto rounded-lg border border-border bg-surface-2 p-6">
-            <pre className="font-mono text-sm leading-relaxed text-muted-foreground">
-              <code>{`# run the wearable loop
-python scripts/run_live.py --config configs/default.yaml --source 0
-
-# score lead time and false alarms on GuardianBench
-python scripts/eval.py --data data/guardianbench --split test
-
-# the ablation table the paper needs
-python scripts/eval.py --ablate
-
-# per-stage p50/p95/p99 latency on the Jetson
-python -m guardian.deploy.benchmark --frames 600`}</code>
-            </pre>
-          </div>
-        </div>
-      </section>
-
-      {/* Ethics */}
+      {/* Constraints */}
       <section>
-        <div className="mx-auto max-w-5xl px-6 py-20">
-          <h2 className="text-3xl font-bold">Constraints that are not negotiable</h2>
-          <ul className="mt-8 space-y-4">
+        <div className="mx-auto max-w-6xl px-6 py-12">
+          <motion.h2
+            initial={reduce ? false : { opacity: 0, y: 18 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="text-3xl font-bold tracking-tight sm:text-4xl"
+          >
+            Rules we don't break
+          </motion.h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              "The device is additive. It never replaces a white cane or guide dog, and the consent form says so plainly.",
-              "Blind users are co-designers, not test subjects. The alert vocabulary is reviewed by the people who will hear it under traffic noise before it is frozen.",
-              "Latency is reported from the Orin under thermal load, as p50/p95/p99. Desktop means are not evidence.",
-              "Recorded routes contain bystander faces and a participant's daily movements. That data never enters version control.",
-              "Failure cases are published, including at least one near-miss the system missed.",
-            ].map((line) => (
-              <li key={line} className="flex gap-4 border-l-2 border-border pl-5">
-                <p className="text-muted-foreground">{line}</p>
-              </li>
+              { t: "It adds, never replaces", b: "The white cane and the guide dog stay." },
+              { t: "Geometry has the last word", b: "A “walk” sign can never override a turning car." },
+              { t: "Blind users co-design it", b: "Not test subjects — authors of the behaviour." },
+              { t: "Speed is measured honestly", b: "On the real device, hot, at p50/p95/p99." },
+              { t: "Failures get published", b: "Including a near-miss the system missed." },
+            ].map((r, i) => (
+              <motion.div
+                key={r.t}
+                initial={reduce ? false : { opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.45, delay: i * 0.05 }}
+                className="rounded-2xl border border-border bg-surface p-5"
+              >
+                <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                  {String(i + 1).padStart(2, "0")}
+                </p>
+                <h3 className="mt-1 text-base font-semibold">{r.t}</h3>
+                <p className="mt-1 text-sm leading-snug text-muted-foreground">{r.b}</p>
+              </motion.div>
             ))}
-          </ul>
-
-          <p className="mt-14 border-t border-border pt-8 font-mono text-xs text-muted-foreground">
+          </div>
+          <p className="mt-8 font-mono text-xs text-muted-foreground">
             AI Guardian · research prototype · not a certified mobility aid
           </p>
         </div>
       </section>
+
+
     </main>
   );
 }
