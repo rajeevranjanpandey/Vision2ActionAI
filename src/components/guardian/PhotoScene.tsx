@@ -11,7 +11,7 @@
  * disagree.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -22,6 +22,7 @@ import {
   Car,
   PersonStanding,
   TriangleAlert,
+  X,
 } from "lucide-react";
 
 import { motion, useReducedMotion } from "motion/react";
@@ -126,7 +127,10 @@ export function PhotoScene({
   const reduce = useReducedMotion();
   const plate = PLATE_BY_OVERLAY[overlay] ?? PLATE[scene] ?? plateStreet;
   /** Only the motion-hazard capabilities draw corridor, track box and forecast. */
-  const geometric = overlay === "predict";
+  const isPredict = overlay === "predict";
+  /** null = follow the hazard automatically; otherwise the viewer picked a camera. */
+  const [camPick, setCamPick] = useState<"front" | "rear" | "left" | "right" | null>(null);
+
 
   const level = decision?.level ?? "none";
   const hazard = level !== "none";
@@ -135,16 +139,37 @@ export function PhotoScene({
   const forecastStroke = "#E5484D";
 
 
-  /** Forecast polyline: constant-velocity rollout, projected frame by frame. */
-  const forecast = useMemo(() => {
-    if (!track) return [];
+  /**
+   * Forecast rollout, snapped onto the marked crossing and truncated at the
+   * walker's corridor. Road users obey the crossing: the rollout is pulled onto
+   * the zebra band (CROSSWALK_Z) instead of cutting diagonally across the
+   * carriageway, and it stops the moment it enters the ±0.75 m ego corridor so
+   * the impact reticle sits on the real conflict point.
+   */
+  const { forecast, conflict } = useMemo(() => {
+    if (!track) return { forecast: [] as { u: number; v: number }[], conflict: null };
+    /** Depth of the painted zebra band in the plate, in metres. */
+    const CROSSWALK_Z = 6.2;
     const pts: { u: number; v: number }[] = [];
+    let hit: { u: number; v: number } | null = null;
     for (let i = 0; i <= 12; i++) {
       const dt = i * 0.2;
-      pts.push(project(track.x + track.vx * dt, track.z + track.vz * dt));
+      const s = i / 12;
+      const x = track.x + track.vx * dt;
+      const free = track.z + track.vz * dt;
+      // ease onto the crossing band, then travel along it rather than into the road
+      const z = free * (1 - s) + CROSSWALK_Z * s;
+      if (z < 0.6) break;
+      const p = project(x, z);
+      pts.push(p);
+      if (Math.abs(x) <= 0.75) {
+        hit = p;
+        break;
+      }
     }
-    return pts;
+    return { forecast: pts, conflict: hit };
   }, [track]);
+
 
   const box = useMemo(() => {
     if (!track) return null;
@@ -179,19 +204,34 @@ export function PhotoScene({
         ? range / closing
         : 0;
   const bearing = track ? (track.x < -0.4 ? "left" : track.x > 0.4 ? "right" : "ahead") : "ahead";
+  /** Camera the fusion stack is showing: the hazard side unless the viewer switched. */
+  const hazardCam = bearing === "ahead" ? "front" : bearing;
+  const activeCam = camPick ?? hazardCam;
+  const onHazardCam = activeCam === hazardCam;
+  /** Overlay geometry only exists on the camera that actually sees the track. */
+  const geometric = isPredict && onHazardCam;
   const score = clamp(0.55 + 0.42 * visionConf, 0.4, 0.98);
 
 
-  /** The walker's own intended path — a ground curve from the feet forward. */
+
+  /**
+   * The walker's own path, drawn forward from the feet. Under a hazard it bends
+   * away from the side the track is coming from, so the frame shows both where
+   * the person is and how they are avoiding the conflict.
+   */
   const ownPath = useMemo(() => {
+    const away = track ? (track.x >= 0 ? -1 : 1) : 1;
+    const shift = hazard ? (level === "urgent" ? 0.7 : 0.45) * away : 0;
     const pts: { u: number; v: number }[] = [];
     for (let i = 0; i <= 10; i++) {
       const z = 1.2 + i * 0.9;
-      const x = -0.15 + 0.35 * (i / 10) ** 2;
+      const s = i / 10;
+      const x = -0.15 + 0.35 * s ** 2 + shift * s ** 1.5;
       pts.push(project(x, z));
     }
     return pts;
-  }, []);
+  }, [track, hazard, level]);
+
 
   const confidencePct = Math.round(
     clamp(Math.max(score, decision?.probability ?? 0) * 100, 40, 98),
@@ -260,7 +300,7 @@ export function PhotoScene({
                   points={forecast.map((p) => `${p.u * 100},${p.v * 65}`).join(" ")}
                   fill="none"
                   stroke="rgba(255,255,255,0.95)"
-                  strokeWidth={2.2}
+                  strokeWidth={1.5}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -268,101 +308,88 @@ export function PhotoScene({
                   points={forecast.map((p) => `${p.u * 100},${p.v * 65}`).join(" ")}
                   fill="none"
                   stroke={forecastStroke}
-                  strokeWidth={1.3}
+                  strokeWidth={0.8}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeDasharray="2.6 2"
-                  className={playing && !reduce ? "animate-[dash_1.1s_linear_infinite]" : undefined}
+                  strokeDasharray="2.2 1.8"
+                  className={playing && !reduce ? "animate-[dash_24s_linear_infinite]" : undefined}
                 />
-                {/* impact reticle at the forecast end */}
-                <circle
-                  cx={forecast[forecast.length - 1]!.u * 100}
-                  cy={forecast[forecast.length - 1]!.v * 65}
-                  r={3}
-                  fill="rgba(229,72,77,0.25)"
-                  stroke="rgba(255,255,255,0.95)"
-                  strokeWidth={0.5}
-                />
-                <circle
-                  cx={forecast[forecast.length - 1]!.u * 100}
-                  cy={forecast[forecast.length - 1]!.v * 65}
-                  r={2}
-                  fill="none"
-                  stroke={forecastStroke}
-                  strokeWidth={0.6}
-                />
-                <circle
-                  cx={forecast[forecast.length - 1]!.u * 100}
-                  cy={forecast[forecast.length - 1]!.v * 65}
-                  r={0.9}
-                  fill={forecastStroke}
-                />
+                {/* impact reticle only where the track actually enters the corridor */}
+                {conflict && (
+                  <>
+                    <circle
+                      cx={conflict.u * 100}
+                      cy={conflict.v * 65}
+                      r={3}
+                      fill="rgba(229,72,77,0.25)"
+                      stroke="rgba(255,255,255,0.95)"
+                      strokeWidth={0.5}
+                    />
+                    <circle
+                      cx={conflict.u * 100}
+                      cy={conflict.v * 65}
+                      r={2}
+                      fill="none"
+                      stroke={forecastStroke}
+                      strokeWidth={0.6}
+                    />
+                    <circle cx={conflict.u * 100} cy={conflict.v * 65} r={0.9} fill={forecastStroke} />
+                  </>
+                )}
               </>
             )}
 
 
             {box && (
-              <>
-                <rect
-                  x={box.left * 100}
-                  y={box.top * 65}
-                  width={box.w * 100}
-                  height={box.h * 65}
-                  fill="none"
-                  stroke={stroke}
-                  strokeWidth={0.45}
-                />
-                {/* leader line to the class badge */}
-                <line
-                  x1={box.base.u * 100}
-                  y1={box.top * 65}
-                  x2={box.base.u * 100}
-                  y2={Math.max(box.top * 65 - 6, 3)}
-                  stroke="rgba(255,255,255,0.9)"
-                  strokeWidth={0.25}
-                />
-              </>
+              <rect
+                x={box.left * 100}
+                y={box.top * 65}
+                width={box.w * 100}
+                height={box.h * 65}
+                fill="none"
+                stroke={stroke}
+                strokeWidth={0.45}
+              />
             )}
           </>
         )}
       </svg>
 
-      {/* class badge + detection caption, as one pill */}
+      {/* class icon + white anchor line + dot — one overlay so they glide together */}
       {geometric && box && track && (
-        <motion.div
-          key={track.className}
-          initial={reduce ? false : { scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="pointer-events-none absolute flex -translate-y-full items-center gap-2"
+        <div
+          className="pointer-events-none absolute"
           style={{
-            left: `${clamp(box.base.u - 0.05, 0.02, 0.6) * 100}%`,
-            top: `${Math.max(box.top * 100 - 6, 6)}%`,
+            left: `${clamp(box.left + box.w / 2, 0.04, 0.96) * 100}%`,
+            top: `${clamp(box.top + box.h / 2, 0.08, 0.92) * 100}%`,
+            transition: "left 0.3s linear, top 0.3s linear",
           }}
         >
-          <span
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 bg-black/55 backdrop-blur-sm"
+          {/* leader terminates at the exact centre of the tracked rectangle */}
+          <div className="absolute bottom-0 left-0 h-8 w-[2px] -translate-x-1/2 bg-white/95" />
+          {/* anchor dot marks the rectangle centre */}
+          <div className="absolute left-0 top-0 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/95" />
+          {/* circular class icon moves with the centre anchor as one overlay */}
+          <motion.span
+            key={track.className}
+            initial={reduce ? false : { scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="absolute bottom-8 left-0 grid h-11 w-11 -translate-x-1/2 place-items-center rounded-full border-2 bg-black/55 backdrop-blur-sm"
             style={{ borderColor: hazard ? stroke : "rgba(255,255,255,0.9)" }}
           >
             <ClassIcon name={track.className} className="h-5 w-5 text-white" />
-          </span>
-          <span className="rounded-lg bg-black/70 px-2.5 py-1.5 leading-tight text-white backdrop-blur-sm">
-            <span className="block whitespace-nowrap text-[12px] font-semibold capitalize">
-              {track.className} detected
-            </span>
-            <span className="block whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-white/75">
-              {score.toFixed(2)} · {range?.toFixed(1)} m · {bearing}
-            </span>
-          </span>
-        </motion.div>
+          </motion.span>
+        </div>
       )}
+
 
       {/* predicted-path label pinned to the forecast */}
       {geometric && forecast.length > 2 && (
         <div
           className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-center leading-tight text-white shadow-sm"
           style={{
-            left: `${clamp(forecast[6]!.u, 0.12, 0.86) * 100}%`,
-            top: `${clamp(forecast[6]!.v - 0.06, 0.1, 0.8) * 100}%`,
+            left: `${clamp(forecast[Math.floor(forecast.length / 2)]!.u, 0.12, 0.86) * 100}%`,
+            top: `${clamp(forecast[Math.floor(forecast.length / 2)]!.v - 0.06, 0.1, 0.8) * 100}%`,
             backgroundColor: forecastStroke,
           }}
         >
@@ -381,23 +408,42 @@ export function PhotoScene({
         </div>
       )}
 
-      {/* which way the fusion stack is looking — active side follows the track bearing */}
-      {geometric && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-2">
-          <div className="flex items-center gap-1 rounded-full bg-black/45 p-1 backdrop-blur-sm">
-            {[
+      {/* camera selector — defaults to the hazard side, viewer can switch feeds */}
+      {isPredict && (
+        <motion.div
+          layout
+          transition={{ type: "spring", stiffness: 320, damping: 30 }}
+          className="absolute inset-x-0 z-20 flex flex-col items-center gap-1.5"
+          style={{ bottom: camPick === null ? 12 : 58 }}
+        >
+          {!onHazardCam && (
+            <span className="pointer-events-none rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+              {activeCam.toUpperCase()} camera · no closing hazard on this feed
+            </span>
+          )}
+          <div
+            role="group"
+            aria-label="Camera direction"
+            className="flex items-center gap-1 rounded-full bg-black/45 p-1 backdrop-blur-sm"
+          >
+            {([
               { k: "front", label: "FRONT", Icon: ArrowUp },
               { k: "rear", label: "REAR", Icon: ArrowUp },
               { k: "left", label: "LEFT", Icon: ArrowDown },
               { k: "right", label: "RIGHT", Icon: ArrowRight },
-            ].map(({ k, label, Icon }) => {
-              const active = k === "front" ? bearing === "ahead" : k === bearing;
+            ] as const).map(({ k, label, Icon }) => {
+              const active = k === activeCam;
               return (
-                <span
+                <button
                   key={k}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] ${
-                    active ? "bg-black text-white" : "text-white/70"
-                  }`}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setCamPick(k)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] transition-colors ${
+                    active
+                      ? "bg-black text-white"
+                      : "text-white/70 hover:bg-black/40 hover:text-white"
+                  } ${k === hazardCam && !active ? "ring-1 ring-[#E5484D]" : ""}`}
                 >
                   {k === "left" ? (
                     <ArrowLeft className="h-3.5 w-3.5" />
@@ -405,12 +451,24 @@ export function PhotoScene({
                     <Icon className={`h-3.5 w-3.5 ${k === "rear" ? "rotate-180" : ""}`} />
                   )}
                   {label}
-                </span>
+                </button>
               );
             })}
+            {camPick !== null && (
+              <button
+                type="button"
+                aria-label="Close manual camera view and follow the hazard automatically"
+                title="Back to auto (follow hazard)"
+                onClick={() => setCamPick(null)}
+                className="ml-0.5 flex h-7 w-7 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-black/50 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-        </div>
+        </motion.div>
       )}
+
 
 
       {/* confidence donut, bottom-right */}
@@ -430,10 +488,12 @@ export function PhotoScene({
             />
           </svg>
           <div className="relative text-center leading-none">
-            <p className="font-mono text-[15px] font-bold tabular-nums text-black">
+            <p className="font-mono text-[18px] font-bold tabular-nums text-black">
               {confidencePct}%
             </p>
-            <p className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-black/55">confidence</p>
+            <p className="mt-0.5 text-[7px] uppercase tracking-[0.1em] text-black/55">
+              confidence
+            </p>
           </div>
         </div>
       )}
@@ -490,7 +550,7 @@ export function PhotoScene({
         </div>
       )}
 
-      <style>{`@keyframes dash { to { stroke-dashoffset: -6.4; } }`}</style>
+      <style>{`@keyframes dash { to { stroke-dashoffset: -4; } }`}</style>
     </figure>
   );
 }
